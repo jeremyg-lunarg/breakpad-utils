@@ -56,36 +56,9 @@ def GetDebugFile(binary):
     # libpthread.so returns '.' which exists but is wrong.
     return dbg_file if dbg_file not in ('-','.') else None
 
-def GetSoName(binary):
-    """
-    Get the SONAME field for a library. Mesa DRI drivers use the same SONAME
-    for multiple drivers. Minidump files will reference the SONAME so we need
-    to write symbols as if that was the file name. It is still a manual process
-    to figure out which DRI driver is in use and add it to the cmd line
-    arguments.
-    """
-    out = GetCommandOutput(['readelf', '-d', binary])
-    # 0x000000000000000e (SONAME)             Library soname: [libgallium_dri.so]
-
-    so_re = re.compile(r'.*\(SONAME\) *Library soname: \[([\w.]+)\]')
-    for line in out.splitlines():
-        m = so_re.match(line)
-        if m:
-            return m.group(1)
-    return os.path.basename(binary)
-
 def GenerateSymbols(symbol_dir, binary):
     """Dumps the symbols of binary and places them in the given directory."""
-    dump_cmd =['dump_syms', '-v']
-    # mesa drivers have a different soname, which what is shows up in the breakpad .dmp file
-    # so we'll use it instead of the filename.
-    soname = GetSoName(binary)
-    if soname != os.path.basename(binary):
-        print(f'different soname: {soname}')
-        dump_cmd += ['-n', soname]
-
-    # options must come before positional arguments
-    dump_cmd.append(binary)
+    dump_cmd =['dump_syms', '-v', binary]
 
     # dump_syms will fail if we pass a debug directory but the debug file isn't found in it.
     dbg_file = GetDebugFile(binary)
@@ -95,8 +68,6 @@ def GenerateSymbols(symbol_dir, binary):
 
     syms = GetCommandOutput(dump_cmd)
     module_line = re.match('^MODULE [^ ]+ [^ ]+ ([0-9A-F]+) (.*)\n', syms)
-    if soname != os.path.basename(binary):
-        print(f'{module_line.group(2)} {module_line.group(1)}')
     output_path = os.path.join(symbol_dir, module_line.group(2), module_line.group(1))
     os.makedirs(output_path, exist_ok=True)
     symbol_file = module_line.group(2) + ".sym"
