@@ -23,7 +23,10 @@ def GetCommandOutput(command):
     then runs it and returns its output (stdout) as a string.
     From chromium_utils.
     """
-    out = subprocess.run(command, capture_output = True, encoding = 'utf-8', check=True)
+    out = subprocess.run(command, capture_output = True, encoding = 'utf-8', check=False)
+    if out.returncode != 0:
+        print(f'{command[0]}: returncode: {out.returncode} stderr: {out.stderr}', file=sys.stderr)
+        return None
     return out.stdout
 
 def FindLib(lib, rpaths):
@@ -67,6 +70,8 @@ def GenerateSymbols(symbol_dir, binary):
         dump_cmd += [os.path.dirname(dbg_file)]
 
     syms = GetCommandOutput(dump_cmd)
+    if syms is None:
+        return
     module_line = re.match('^MODULE [^ ]+ [^ ]+ ([0-9A-F]+) (.*)\n', syms)
     output_path = os.path.join(symbol_dir, module_line.group(2), module_line.group(1))
     os.makedirs(output_path, exist_ok=True)
